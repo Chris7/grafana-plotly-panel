@@ -19,6 +19,7 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
 
     this.data = [];
     this.traces = {};
+    this.displayOptions = {};
     this.sizeChanged = true;
     this.initalized = false;
 
@@ -32,22 +33,25 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
         z: null,
         color: null,
         size: null,
+        x_query: 0,
+        y_query: 0,
+        z_query: 0,
       },
       settings: {
         type: 'scatter',
         mode: 'lines+markers',
         displayModeBar: false,
         line: {
-          color : '#005f81',
+          color : null,
           width : 6,
           dash  : 'solid',
           shape : 'linear'
         },
         marker: {
-          size: 30,
+          size: 12,
           symbol: 'circle',
-          color: '#33B5E5',
-          colorscale: 'YIOrRd',
+          color: null,
+          // colorscale: 'YIOrRd',
           sizemode: 'diameter',
           sizemin: 3,
           sizeref: 0.2,
@@ -55,14 +59,14 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
             color: '#DDD',
             width: 0
           },
-          showscale: true
+          showscale: false
         },
-        color_option: 'ramp'
+        color_option: 'solid'
       },
       layout: {
         autosize: false,
-        showlegend: false,
-        legend: {"orientation": "v"},
+        showlegend: true,
+        // legend: {"orientation": "v"},
         dragmode: 'lasso', // (enumerated: "zoom" | "pan" | "select" | "lasso" | "orbit" | "turntable" )
         hovermode: 'closest',
         plot_bgcolor: "#1f1d1d",
@@ -99,11 +103,17 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
       }
     };
 
-    // Make sure it has the default settings (may have more!)
-    this.panel.pconfig = $.extend(true, dcfg, this.panel.pconfig );
+    // There are a bunch of default settings we want to override from grafana's settings
+    // this.panel.pconfig.settings.marker.color = null;
+    // this.panel.pconfig.settings.marker.showscale = false;
+    // this.panel.pconfig.settings.marker.size = 12;
+    // this.panel.pconfig.settings.line.color = null;
+    // this.panel.pconfig.layout.showlegend = true;
+
+    this.panel.pconfig = $.extend(true, dcfg, this.panel.pconfig);
 
     var cfg = this.panel.pconfig;
-    this.layout = $.extend(true, {}, this.panel.pconfig.layout );
+    this.layout = $.extend(true, {}, this.panel.pconfig.layout);
 
     this.events.on('init-edit-mode', this.onInitEditMode.bind(this));
     this.events.on('render', this.onRender.bind(this));
@@ -142,9 +152,27 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
 
     var cfg = this.panel.pconfig;
     this.axis = [
-      { disp: 'X Axis', idx: 1, config: cfg.layout.xaxis, metric: (name) => { if(name) { cfg.mapping.x=name; } return cfg.mapping.x; }},
-      { disp: 'Y Axis', idx: 2, config: cfg.layout.yaxis, metric: (name) => { if(name) { cfg.mapping.y=name; } return cfg.mapping.y; }},
-      { disp: 'Z Axis', idx: 3, config: cfg.layout.yaxis, metric: (name) => { if(name) { cfg.mapping.z=name; } return cfg.mapping.z; }}
+      {
+        disp: 'X Axis',
+        query_idx: (query_idx) => {if (query_idx) { cfg.mapping.x_query = query_idx} return cfg.mapping.x_query},
+        idx: 1,
+        config: cfg.layout.xaxis,
+        metric: (name) => { if(name) { cfg.mapping.x=name; } return cfg.mapping.x; }
+      },
+      {
+        disp: 'Y Axis',
+        query_idx: (query_idx) => {if (query_idx) { cfg.mapping.y_query = query_idx} return cfg.mapping.y_query},
+        idx: 2,
+        config: cfg.layout.yaxis,
+        metric: (name) => { if(name) { cfg.mapping.y=name; } return cfg.mapping.y; }
+        },
+      {
+        disp: 'Z Axis',
+        query_idx: (query_idx) => {if (query_idx) { cfg.mapping.z_query = query_idx} return cfg.mapping.z_query},
+        idx: 3,
+        config: cfg.layout.yaxis,
+        metric: (name) => { if(name) { cfg.mapping.z=name; } return cfg.mapping.z; }
+      }
     ];
   }
 
@@ -190,6 +218,7 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
         this.layout.yaxis.title = old.yaxis.title;
       }
 
+      console.log('drawing', this.graph, data, this.layout, options);
       Plotly.newPlot(this.graph, data, this.layout, options);
 
       if(false) {
@@ -260,32 +289,128 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
     this.initalized = true;
   }
 
-  onDataReceived(dataSeries) {
-    this.traces = {};
-    this.data = [];
+  getRandomColor() {
+    var letters = '0123456789ABCDEF';
+    var color = '#';
+    for (var i = 0; i < 6; i++ ) {
+      color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+  }
 
-    for(let data_idx=0; data_idx<dataSeries.length; data_idx++){
-      let dataObject = dataSeries[data_idx];
+  function findKeys(obj, prefix) {
+    let allKeys = {};
+    prefix = prefix + '.' || '';
+    Object.keys(obj).forEach((key) => {
+      let value = obj[key];
+      const prefixedKey = prefix + key;
+      if (typeof value === 'object') {
+        findKeys(value, prefixedKey).forEach((key) => {
+          allKeys[key] = true;
+        });
+      } else {
+        allKeys[prefixedKey] = true;
+      }
+    });
+    return Object.keys(allKeys);
+  }
+  findKeys({a: 2})
+
+  onDataReceived(dataQuery) {
+    // We recive a list of data objects, one from each query specified.
+    console.log('this is', this);
+    console.log('data received is', dataQuery);
+
+    this.traces = {};
+    this.displayOptions = {};
+    for(let i=0; i<this.panel.targets.length; i++) {
+      this.traces[this.panel.targets[i].refId] = {};
+      this.displayOptions[this.panel.targets[i].refId] = {};
+    }
+    // How to clear the data without assigning a new array
+    this.data.length = 0;
+
+    let cfg = this.panel.pconfig;
+    let mapping = cfg.mapping;
+
+    for(let data_group=0; data_group<dataQuery.length; data_group++){
+      // Once we can determine the data source, we can remove this hack
+      let refId;
+      if (dataQuery.length != this.panel.targets.length){
+        refId = this.panel.targets[0].refId;
+      } else {
+        refId = this.panel.targets[data_group].refId;
+      }
+
+      let dataObject = dataQuery[data_group];
       let trace = {
-        type: 'scatter',
+        type: cfg.settings.mode,
         x: [],
         y: [],
-        name: dataObject.target
+        name: dataObject.target,
+        mode: cfg.settings.mode
       };
 
-      this.traces[dataObject.target] = trace;
+      this.traces[refId][dataObject.target] = trace;
 
-      let cfg = this.panel.pconfig;
-      let mapping = cfg.mapping;
+
 
       let datapoints = dataObject.datapoints;
+      // Figure out what index is going to be X and which will be Y
+      // The default return is [value, timestamp] from ES date histogram Count
+      const xIndex = mapping.x || 1;
+      const yIndex = mapping.y || 0;
+      const zIndex = mapping.z || 2;
+
+      if (dataObject.type == 'docs') {
+        for(var j=0; j<datapoints.length; j++) {
+          const point = datapoints[j];
+          this.findKeys(point).forEach(
+            (key) => {
+              this.displayOptions[refId][key] = true;
+            }
+          );
+        }
+      } else {
+        for(var j=0; j<datapoints[0].length; j++) {
+          this.displayOptions[refId][j] = true;
+        }
+      }
+
       for(var j=0; j<datapoints.length; j++) {
-        trace.x.push( datapoints[j][0] );
-        trace.y.push( datapoints[j][1] );
+        const point = datapoints[j];
+        let xdata, ydata, zdata;
+        if (refId == mapping.x_query) {
+          let data = point[xIndex];
+          if(Array.isArray(data)) {
+            xdata = data[0];
+          } else {
+            xdata = data;
+          }
+        }
+        if (refId == mapping.y_query) {
+          let data = point[yIndex];
+          if(Array.isArray(data)) {
+            ydata = data[0];
+          } else {
+            ydata = data;
+          }
+        }
+        if (typeof xdata !== 'undefined' && typeof ydata !== 'undefined') {
+          trace.x.push(xdata);
+          trace.y.push(ydata);
+        }
       }
 
       trace.marker = $.extend(true, {}, cfg.settings.marker);
       trace.line = $.extend(true, {}, cfg.settings.line);
+      if (cfg.settings.marker.color === null) {
+        trace.marker.color = this.getRandomColor();
+      }
+      if (cfg.settings.line.color === null) {
+        trace.line.color = this.getRandomColor();
+      }
+
       this.data.push(trace);
     }
 

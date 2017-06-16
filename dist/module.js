@@ -81,6 +81,7 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
 
           _this.data = [];
           _this.traces = {};
+          _this.displayOptions = {};
           _this.sizeChanged = true;
           _this.initalized = false;
 
@@ -92,23 +93,26 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
               y: null,
               z: null,
               color: null,
-              size: null
+              size: null,
+              x_query: 0,
+              y_query: 0,
+              z_query: 0
             },
             settings: {
               type: 'scatter',
               mode: 'lines+markers',
               displayModeBar: false,
               line: {
-                color: '#005f81',
+                color: null,
                 width: 6,
                 dash: 'solid',
                 shape: 'linear'
               },
               marker: {
-                size: 30,
+                size: 12,
                 symbol: 'circle',
-                color: '#33B5E5',
-                colorscale: 'YIOrRd',
+                color: null,
+                // colorscale: 'YIOrRd',
                 sizemode: 'diameter',
                 sizemin: 3,
                 sizeref: 0.2,
@@ -116,14 +120,14 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                   color: '#DDD',
                   width: 0
                 },
-                showscale: true
+                showscale: false
               },
-              color_option: 'ramp'
+              color_option: 'solid'
             },
             layout: {
               autosize: false,
-              showlegend: false,
-              legend: { "orientation": "v" },
+              showlegend: true,
+              // legend: {"orientation": "v"},
               dragmode: 'lasso', // (enumerated: "zoom" | "pan" | "select" | "lasso" | "orbit" | "turntable" )
               hovermode: 'closest',
               plot_bgcolor: "#1f1d1d",
@@ -160,7 +164,13 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
             }
           };
 
-          // Make sure it has the default settings (may have more!)
+          // There are a bunch of default settings we want to override from grafana's settings
+          // this.panel.pconfig.settings.marker.color = null;
+          // this.panel.pconfig.settings.marker.showscale = false;
+          // this.panel.pconfig.settings.marker.size = 12;
+          // this.panel.pconfig.settings.line.color = null;
+          // this.panel.pconfig.layout.showlegend = true;
+
           _this.panel.pconfig = $.extend(true, dcfg, _this.panel.pconfig);
 
           var cfg = _this.panel.pconfig;
@@ -208,19 +218,49 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
             this.subTabIndex = 0; // select the options
 
             var cfg = this.panel.pconfig;
-            this.axis = [{ disp: 'X Axis', idx: 1, config: cfg.layout.xaxis, metric: function metric(name) {
+            this.axis = [{
+              disp: 'X Axis',
+              query_idx: function query_idx(_query_idx) {
+                if (_query_idx) {
+                  cfg.mapping.x_query = _query_idx;
+                }return cfg.mapping.x_query;
+              },
+              idx: 1,
+              config: cfg.layout.xaxis,
+              metric: function metric(name) {
                 if (name) {
                   cfg.mapping.x = name;
                 }return cfg.mapping.x;
-              } }, { disp: 'Y Axis', idx: 2, config: cfg.layout.yaxis, metric: function metric(name) {
+              }
+            }, {
+              disp: 'Y Axis',
+              query_idx: function query_idx(_query_idx2) {
+                if (_query_idx2) {
+                  cfg.mapping.y_query = _query_idx2;
+                }return cfg.mapping.y_query;
+              },
+              idx: 2,
+              config: cfg.layout.yaxis,
+              metric: function metric(name) {
                 if (name) {
                   cfg.mapping.y = name;
                 }return cfg.mapping.y;
-              } }, { disp: 'Z Axis', idx: 3, config: cfg.layout.yaxis, metric: function metric(name) {
+              }
+            }, {
+              disp: 'Z Axis',
+              query_idx: function query_idx(_query_idx3) {
+                if (_query_idx3) {
+                  cfg.mapping.z_query = _query_idx3;
+                }return cfg.mapping.z_query;
+              },
+              idx: 3,
+              config: cfg.layout.yaxis,
+              metric: function metric(name) {
                 if (name) {
                   cfg.mapping.z = name;
                 }return cfg.mapping.z;
-              } }];
+              }
+            }];
           }
         }, {
           key: 'isAxisVisible',
@@ -270,6 +310,7 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                 this.layout.yaxis.title = old.yaxis.title;
               }
 
+              console.log('drawing', this.graph, data, this.layout, options);
               Plotly.newPlot(this.graph, data, this.layout, options);
 
               if (false) {
@@ -290,6 +331,42 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                   _this2.$tooltip.detach();
                 });
               }
+
+              // this.graph.on('plotly_selected',  (data) => {
+              //
+              //   if(data.points.length == 0) {
+              //     console.log( "Nothign Selected", data)
+              //     return;
+              //   }
+              //
+              //   console.log( "SELECTED", data)
+              //
+              //   var min = Number.MAX_SAFE_INTEGER;
+              //   var max = Number.MIN_SAFE_INTEGER;
+              //
+              //   for(var i=0; i < data.points.length; i++){
+              //     var idx = data.points[i].pointNumber;
+              //     var ts = this.trace.ts[idx];
+              //     min = Math.min( min, ts);
+              //     max = Math.max( max, ts);
+              //   }
+              //
+              //   min -= 1000;
+              //   max += 1000;
+              //
+              //   var range = {from: moment.utc(min), to: moment.utc(max) };
+              //
+              //   console.log( 'SELECTED!!!', min, max, data.points.length, range );
+              //
+              //   this.timeSrv.setTime(range);
+              //
+              //   // rebuild the graph after query
+              //   if(this.graph) {
+              //     Plotly.Plots.purge(this.graph);
+              //     this.graph.innerHTML = '';
+              //     this.initalized = false;
+              //   }
+              // });
             } else {
               Plotly.redraw(this.graph);
             }
@@ -303,34 +380,121 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
             this.initalized = true;
           }
         }, {
+          key: 'getRandomColor',
+          value: function getRandomColor() {
+            var letters = '0123456789ABCDEF';
+            var color = '#';
+            for (var i = 0; i < 6; i++) {
+              color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+          }
+        }, {
           key: 'onDataReceived',
-          value: function onDataReceived(dataSeries) {
-            this.traces = {};
-            this.data = [];
+          value: function onDataReceived(dataQuery) {
+            var _this3 = this;
 
-            for (var data_idx = 0; data_idx < dataSeries.length; data_idx++) {
-              var dataObject = dataSeries[data_idx];
+            // We recive a list of data objects, one from each query specified.
+            console.log('this is', this);
+            console.log('data received is', dataQuery);
+
+            this.traces = {};
+            this.displayOptions = {};
+            for (var i = 0; i < this.panel.targets.length; i++) {
+              this.traces[this.panel.targets[i].refId] = {};
+              this.displayOptions[this.panel.targets[i].refId] = {};
+            }
+            // How to clear the data without assigning a new array
+            this.data.length = 0;
+
+            var cfg = this.panel.pconfig;
+            var mapping = cfg.mapping;
+
+            var _loop = function _loop(data_group) {
+              // Once we can determine the data source, we can remove this hack
+              var refId = void 0;
+              if (dataQuery.length != _this3.panel.targets.length) {
+                refId = _this3.panel.targets[0].refId;
+              } else {
+                refId = _this3.panel.targets[data_group].refId;
+              }
+
+              var dataObject = dataQuery[data_group];
               var trace = {
-                type: 'scatter',
+                type: cfg.settings.mode,
                 x: [],
                 y: [],
-                name: dataObject.target
+                name: dataObject.target,
+                mode: cfg.settings.mode
               };
 
-              this.traces[dataObject.target] = trace;
-
-              var cfg = this.panel.pconfig;
-              var mapping = cfg.mapping;
+              _this3.traces[refId][dataObject.target] = trace;
 
               var datapoints = dataObject.datapoints;
-              for (var j = 0; j < datapoints.length; j++) {
-                trace.x.push(datapoints[j][0]);
-                trace.y.push(datapoints[j][1]);
+              // Figure out what index is going to be X and which will be Y
+              // The default return is [value, timestamp] from ES date histogram Count
+              var xIndex = mapping.x || 1;
+              var yIndex = mapping.y || 0;
+              var zIndex = mapping.z || 2;
+
+              if (dataObject.type == 'docs') {
+                for (j = 0; j < datapoints.length; j++) {
+                  var point = datapoints[j];
+                  Object.keys(point).forEach(function (key) {
+                    _this3.displayOptions[refId][key] = true;
+                  });
+                }
+              } else {
+                for (j = 0; j < datapoints[0].length; j++) {
+                  _this3.displayOptions[refId][j] = true;
+                }
+              }
+
+              for (j = 0; j < datapoints.length; j++) {
+                var _point = datapoints[j];
+                var xdata = void 0,
+                    ydata = void 0,
+                    zdata = void 0;
+                if (refId == mapping.x_query) {
+                  var data = _point[xIndex];
+                  if (Array.isArray(data)) {
+                    xdata = data[0];
+                  } else {
+                    xdata = data;
+                  }
+                }
+                if (refId == mapping.y_query) {
+                  var _data = _point[yIndex];
+                  if (Array.isArray(_data)) {
+                    ydata = _data[0];
+                  } else {
+                    ydata = _data;
+                  }
+                }
+                if (typeof xdata !== 'undefined' && typeof ydata !== 'undefined') {
+                  trace.x.push(xdata);
+                  trace.y.push(ydata);
+                }
               }
 
               trace.marker = $.extend(true, {}, cfg.settings.marker);
               trace.line = $.extend(true, {}, cfg.settings.line);
-              this.data.push(trace);
+              if (cfg.settings.marker.color === null) {
+                trace.marker.color = _this3.getRandomColor();
+              }
+              if (cfg.settings.line.color === null) {
+                trace.line.color = _this3.getRandomColor();
+              }
+
+              _this3.data.push(trace);
+            };
+
+            for (var data_group = 0; data_group < dataQuery.length; data_group++) {
+              var j;
+              var j;
+              var j;
+
+              _loop(data_group);
             }
 
             this.render();
@@ -366,24 +530,24 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
         }, {
           key: 'link',
           value: function link(scope, elem, attrs, ctrl) {
-            var _this3 = this;
+            var _this4 = this;
 
             this.graph = elem.find('.plotly-spot')[0];
             this.initalized = false;
             elem.on('mousemove', function (evt) {
-              _this3.mouse = evt;
+              _this4.mouse = evt;
             });
           }
         }, {
           key: 'getSymbolSegs',
           value: function getSymbolSegs() {
-            var _this4 = this;
+            var _this5 = this;
 
             var txt = ["circle", "circle-open", "circle-dot", "circle-open-dot", "square", "square-open", "square-dot", "square-open-dot", "diamond", "diamond-open", "diamond-dot", "diamond-open-dot", "cross", "cross-open", "cross-dot", "cross-open-dot", "x", "x-open", "x-dot", "x-open-dot", "triangle-up", "triangle-up-open", "triangle-up-dot", "triangle-up-open-dot", "triangle-down", "triangle-down-open", "triangle-down-dot", "triangle-down-open-dot", "triangle-left", "triangle-left-open", "triangle-left-dot", "triangle-left-open-dot", "triangle-right", "triangle-right-open", "triangle-right-dot", "triangle-right-open-dot", "triangle-ne", "triangle-ne-open", "triangle-ne-dot", "triangle-ne-open-dot", "triangle-se", "triangle-se-open", "triangle-se-dot", "triangle-se-open-dot", "triangle-sw", "triangle-sw-open", "triangle-sw-dot", "triangle-sw-open-dot", "triangle-nw", "triangle-nw-open", "triangle-nw-dot", "triangle-nw-open-dot", "pentagon", "pentagon-open", "pentagon-dot", "pentagon-open-dot", "hexagon", "hexagon-open", "hexagon-dot", "hexagon-open-dot", "hexagon2", "hexagon2-open", "hexagon2-dot", "hexagon2-open-dot", "octagon", "octagon-open", "octagon-dot", "octagon-open-dot", "star", "star-open", "star-dot", "star-open-dot", "hexagram", "hexagram-open", "hexagram-dot", "hexagram-open-dot", "star-triangle-up", "star-triangle-up-open", "star-triangle-up-dot", "star-triangle-up-open-dot", "star-triangle-down", "star-triangle-down-open", "star-triangle-down-dot", "star-triangle-down-open-dot", "star-square", "star-square-open", "star-square-dot", "star-square-open-dot", "star-diamond", "star-diamond-open", "star-diamond-dot", "star-diamond-open-dot", "diamond-tall", "diamond-tall-open", "diamond-tall-dot", "diamond-tall-open-dot", "diamond-wide", "diamond-wide-open", "diamond-wide-dot", "diamond-wide-open-dot", "hourglass", "hourglass-open", "bowtie", "bowtie-open", "circle-cross", "circle-cross-open", "circle-x", "circle-x-open", "square-cross", "square-cross-open", "square-x", "square-x-open", "diamond-cross", "diamond-cross-open", "diamond-x", "diamond-x-open", "cross-thin", "cross-thin-open", "x-thin", "x-thin-open", "asterisk", "asterisk-open", "hash", "hash-open", "hash-dot", "hash-open-dot", "y-up", "y-up-open", "y-down", "y-down-open", "y-left", "y-left-open", "y-right", "y-right-open", "line-ew", "line-ew-open", "line-ns", "line-ns-open", "line-ne", "line-ne-open", "line-nw", "line-nw-open"];
 
             var segs = [];
             _.forEach(txt, function (val) {
-              segs.push(_this4.uiSegmentSrv.newSegment(val));
+              segs.push(_this5.uiSegmentSrv.newSegment(val));
             });
             return this.q.when(segs);
           }

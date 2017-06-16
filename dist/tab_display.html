@@ -15,6 +15,7 @@
   </aside>
 
   <!-- OPTIONS -->
+  <!-- 0 corresponds to the Plot Display -->
   <div class="edit-tab-content" ng-if="ctrl.subTabIndex === 0">
     <div class="section gf-form-group">
       <h5 class="section-heading">Options</h5>
@@ -208,14 +209,26 @@
      <div class="section gf-form-group">
       <h5 class="section-heading">{{ axis.disp }}</h5>
 
-        <div class="gf-form" ng-value="metric = ctrl.traces[axis.metric()];">
+       <div class="gf-form" ng-value="query_idx = ctrl.traces[axis.query_idx()];">
+          <label class="gf-form-label width-7">Query</label>
+          <div class="gf-form-select-wrapper max-width-14">
+            <select class="gf-form-input"
+              ng-model="axis.query_idx"
+              ng-model-options="{ getterSetter: true }"
+              ng-change="ctrl.onConfigChanged()">
+              <option ng-repeat="(key, value) in ctrl.traces" value="{{key}}">{{key}}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="gf-form" ng-value="metric = ctrl.traces[axis.query_idx()][axis.metric()];">
           <label class="gf-form-label width-7">Metric</label>
           <div class="gf-form-select-wrapper max-width-14">
             <select class="gf-form-input"
               ng-model="axis.metric"
               ng-model-options="{ getterSetter: true }"
               ng-change="ctrl.onConfigChanged()">
-              <option ng-repeat="(key, value) in ctrl.traces" value="{{key}}">{{key}}</option>
+              <option ng-repeat="(key, value) in ctrl.displayOptions[axis.query_idx()]" value="{{key}}">{{key}}</option>
             </select>
           </div>
           &nbsp; {{ metric.type }} &nbsp;&nbsp;  <span ng-show="metric.missing>0">Missing: {{ metric.missing }}</span>
