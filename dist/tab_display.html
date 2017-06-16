@@ -68,7 +68,7 @@
         <div class="gf-form-select-wrapper max-width-14">
           <select class="gf-form-input" ng-model="ctrl.panel.pconfig.mapping.size" ng-change="ctrl.onConfigChanged()">
             <option value="">(fixed)</option>
-            <option ng-repeat="(key, value) in ctrl.data" value="{{key}}">{{key}}</option>
+            <option ng-repeat="(key, value) in ctrl.traces" value="{{value.marker.size}}">{{key}}</option>
           </select>
         </div>
       </div>
@@ -123,7 +123,7 @@
         <label class="gf-form-label width-7">- Metric</label>
         <div class="gf-form-select-wrapper max-width-14">
           <select class="gf-form-input" ng-model="ctrl.panel.pconfig.mapping.color" ng-change="ctrl.onConfigChanged()">
-            <option ng-repeat="(key, value) in ctrl.data" value="{{key}}">{{key}}</option>
+            <option ng-repeat="(key, value) in ctrl.traces" value="{{key}}">{{key}}</option>
           </select>
         </div>
       </div>
@@ -208,14 +208,14 @@
      <div class="section gf-form-group">
       <h5 class="section-heading">{{ axis.disp }}</h5>
 
-        <div class="gf-form" ng-value="metric = ctrl.data[axis.metric()];">
+        <div class="gf-form" ng-value="metric = ctrl.traces[axis.metric()];">
           <label class="gf-form-label width-7">Metric</label>
           <div class="gf-form-select-wrapper max-width-14">
             <select class="gf-form-input"
               ng-model="axis.metric"
               ng-model-options="{ getterSetter: true }"
               ng-change="ctrl.onConfigChanged()">
-              <option ng-repeat="(key, value) in ctrl.data" value="{{key}}">{{key}}</option>
+              <option ng-repeat="(key, value) in ctrl.traces" value="{{key}}">{{key}}</option>
             </select>
           </div>
           &nbsp; {{ metric.type }} &nbsp;&nbsp;  <span ng-show="metric.missing>0">Missing: {{ metric.missing }}</span>

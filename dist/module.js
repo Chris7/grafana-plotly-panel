@@ -79,6 +79,8 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
           _this.uiSegmentSrv = uiSegmentSrv;
           _this.q = $q;
 
+          _this.data = [];
+          _this.traces = {};
           _this.sizeChanged = true;
           _this.initalized = false;
 
@@ -162,7 +164,6 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
           _this.panel.pconfig = $.extend(true, dcfg, _this.panel.pconfig);
 
           var cfg = _this.panel.pconfig;
-          _this.trace = {};
           _this.layout = $.extend(true, {}, _this.panel.pconfig.layout);
 
           _this.events.on('init-edit-mode', _this.onInitEditMode.bind(_this));
@@ -257,7 +258,7 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                 modeBarButtonsToRemove: ['sendDataToCloud'] //, 'select2d', 'lasso2d']
               };
 
-              var data = [this.trace];
+              var data = this.data;
               var rect = this.graph.getBoundingClientRect();
 
               var old = this.layout;
@@ -270,16 +271,6 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
               }
 
               Plotly.newPlot(this.graph, data, this.layout, options);
-
-              this.graph.on('plotly_click', function (data) {
-                for (var i = 0; i < data.points.length; i++) {
-                  var idx = data.points[i].pointNumber;
-                  var ts = _this2.trace.ts[idx];
-                  // console.log( 'CLICK!!!', ts, data );
-                  var msg = data.points[i].x.toPrecision(4) + ", " + data.points[i].y.toPrecision(4);
-                  _this2.$rootScope.appEvent('alert-success', [msg, '@ ' + _this2.dashboard.formatDate(moment(ts))]);
-                }
-              });
 
               if (false) {
                 this.graph.on('plotly_hover', function (data, xxx) {
@@ -299,42 +290,6 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                   _this2.$tooltip.detach();
                 });
               }
-
-              this.graph.on('plotly_selected', function (data) {
-
-                if (data.points.length == 0) {
-                  console.log("Nothign Selected", data);
-                  return;
-                }
-
-                console.log("SELECTED", data);
-
-                var min = Number.MAX_SAFE_INTEGER;
-                var max = Number.MIN_SAFE_INTEGER;
-
-                for (var i = 0; i < data.points.length; i++) {
-                  var idx = data.points[i].pointNumber;
-                  var ts = _this2.trace.ts[idx];
-                  min = Math.min(min, ts);
-                  max = Math.max(max, ts);
-                }
-
-                min -= 1000;
-                max += 1000;
-
-                var range = { from: moment.utc(min), to: moment.utc(max) };
-
-                console.log('SELECTED!!!', min, max, data.points.length, range);
-
-                _this2.timeSrv.setTime(range);
-
-                // rebuild the graph after query
-                if (_this2.graph) {
-                  Plotly.Plots.purge(_this2.graph);
-                  _this2.graph.innerHTML = '';
-                  _this2.initalized = false;
-                }
-              });
             } else {
               Plotly.redraw(this.graph);
             }
@@ -349,154 +304,35 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
           }
         }, {
           key: 'onDataReceived',
-          value: function onDataReceived(dataList) {
-            this.trace.x = [];
-            this.trace.y = [];
-            this.trace.z = [];
+          value: function onDataReceived(dataSeries) {
+            this.traces = {};
+            this.data = [];
 
-            this.data = {};
-            if (dataList.length < 2) {
-              console.log("No data", dataList);
-            } else {
-              var dmapping = {
-                x: null,
-                y: null,
-                z: null
+            for (var data_idx = 0; data_idx < dataSeries.length; data_idx++) {
+              var dataObject = dataSeries[data_idx];
+              var trace = {
+                type: 'scatter',
+                x: [],
+                y: [],
+                name: dataObject.target
               };
 
-              //   console.log( "plotly data", dataList);
+              this.traces[dataObject.target] = trace;
+
               var cfg = this.panel.pconfig;
               var mapping = cfg.mapping;
-              var key = {
-                name: "@time",
-                type: 'ms',
-                missing: 0,
-                idx: -1,
-                points: []
-              };
-              var idx = {
-                name: "@index",
-                type: 'number',
-                missing: 0,
-                idx: -1,
-                points: []
-              };
-              this.data[key.name] = key;
-              this.data[idx.name] = idx;
-              for (var i = 0; i < dataList.length; i++) {
-                var datapoints = dataList[i].datapoints;
-                if (datapoints.length > 0) {
-                  var val = {
-                    name: dataList[i].target,
-                    type: 'number',
-                    missing: 0,
-                    idx: i,
-                    points: []
-                  };
-                  if (_.isString(datapoints[0][0])) {
-                    val.type = 'string';
-                  } else if (_.isBoolean(datapoints[0][0])) {
-                    val.type = 'boolean';
-                  }
 
-                  // Set the default mapping values
-                  if (i == 0) {
-                    dmapping.x = val.name;
-                  } else if (i == 1) {
-                    dmapping.y = val.name;
-                  } else if (i == 2) {
-                    dmapping.z = val.name;
-                  }
-
-                  this.data[val.name] = val;
-                  if (key.points.length == 0) {
-                    for (var j = 0; j < datapoints.length; j++) {
-                      key.points.push(datapoints[j][1]);
-                      val.points.push(datapoints[j][0]);
-                      idx.points.push(j);
-                    }
-                  } else {
-                    for (var j = 0; j < datapoints.length; j++) {
-                      if (j >= key.points.length) {
-                        break;
-                      }
-                      // Make sure it is from the same timestamp
-                      if (key.points[j] == datapoints[j][1]) {
-                        val.points.push(datapoints[j][0]);
-                      } else {
-                        val.missing = val.missing + 1;
-                      }
-                    }
-                  }
-                }
+              var datapoints = dataObject.datapoints;
+              for (var j = 0; j < datapoints.length; j++) {
+                trace.x.push(datapoints[j][0]);
+                trace.y.push(datapoints[j][1]);
               }
 
-              // Maybe overwrite?
-              if (!mapping.x) mapping.x = dmapping.x;
-              if (!mapping.y) mapping.y = dmapping.y;
-              if (!mapping.z) mapping.z = dmapping.z;
-
-              // console.log( "GOT", this.data, mapping );
-
-              var dX = this.data[mapping.x];
-              var dY = this.data[mapping.y];
-              var dZ = null;
-              var dC = null;
-              var dS = null;
-              var dT = null;
-
-              if (!dX) {
-                throw { message: "Unable to find X: " + mapping.x };
-              }
-              if (!dY) {
-                throw { message: "Unable to find Y: " + mapping.y };
-              }
-
-              this.trace.ts = key.points;
-              this.trace.x = dX.points;
-              this.trace.y = dY.points;
-
-              if (cfg.settings.type == 'scatter3d') {
-                dZ = this.data[mapping.z];
-                if (!dZ) {
-                  throw { message: "Unable to find Z: " + mapping.z };
-                }
-                this.layout.scene.xaxis.title = dX.name;
-                this.layout.scene.yaxis.title = dY.name;
-                this.layout.scene.zaxis.title = dZ.name;
-
-                this.trace.z = dZ.points;
-                console.log("3D", this.layout);
-              } else {
-                this.layout.xaxis.title = dX.name;
-                this.layout.yaxis.title = dY.name;
-              }
-
-              this.trace.marker = $.extend(true, {}, cfg.settings.marker);
-              this.trace.line = $.extend(true, {}, cfg.settings.line);
-
-              if (mapping.size) {
-                dS = this.data[mapping.size];
-                if (!dS) {
-                  throw { message: "Unable to find Size: " + mapping.size };
-                }
-                this.trace.marker.size = dS.points;
-              }
-
-              // Set the marker colors
-              if (cfg.settings.color_option == 'ramp') {
-                if (!mapping.color) {
-                  mapping.color = idx.name;
-                }
-                dC = this.data[mapping.color];
-                if (!dC) {
-                  throw { message: "Unable to find Color: " + mapping.color };
-                }
-                this.trace.marker.color = dC.points;
-              }
-
-              console.log("TRACE", this.trace);
+              trace.marker = $.extend(true, {}, cfg.settings.marker);
+              trace.line = $.extend(true, {}, cfg.settings.line);
+              this.data.push(trace);
             }
+
             this.render();
           }
         }, {
@@ -510,17 +346,19 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
             }
 
             var cfg = this.panel.pconfig;
-            this.trace.type = cfg.settings.type;
-            this.trace.mode = cfg.settings.mode;
+            for (var i = 0; i < this.data.length; i++) {
+              this.data[i].type = cfg.settings.type;
+              this.data[i].mode = cfg.settings.mode;
+            }
 
             var axis = [this.panel.pconfig.layout.xaxis, this.panel.pconfig.layout.yaxis];
-            for (var i = 0; i < axis.length; i++) {
-              if (axis[i].rangemode === 'between') {
-                if (axis[i].range == null) {
-                  axis[i].range = [0, null];
+            for (var _i = 0; _i < axis.length; _i++) {
+              if (axis[_i].rangemode === 'between') {
+                if (axis[_i].range == null) {
+                  axis[_i].range = [0, null];
                 }
               } else {
-                axis[i].range = null;
+                axis[_i].range = null;
               }
             }
             this.refresh();
