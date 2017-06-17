@@ -3,7 +3,7 @@
 System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/plotly'], function (_export, _context) {
   "use strict";
 
-  var MetricsPanelCtrl, _, moment, angular, Plotly, _createClass, PlotlyPanelCtrl;
+  var MetricsPanelCtrl, _, moment, angular, Plotly, _typeof, _createClass, PlotlyPanelCtrl;
 
   function _classCallCheck(instance, Constructor) {
     if (!(instance instanceof Constructor)) {
@@ -48,6 +48,12 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
       Plotly = _externalPlotly;
     }],
     execute: function () {
+      _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
+        return typeof obj;
+      } : function (obj) {
+        return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+      };
+
       _createClass = function () {
         function defineProperties(target, props) {
           for (var i = 0; i < props.length; i++) {
@@ -332,41 +338,21 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                 });
               }
 
-              // this.graph.on('plotly_selected',  (data) => {
-              //
-              //   if(data.points.length == 0) {
-              //     console.log( "Nothign Selected", data)
-              //     return;
-              //   }
-              //
-              //   console.log( "SELECTED", data)
-              //
-              //   var min = Number.MAX_SAFE_INTEGER;
-              //   var max = Number.MIN_SAFE_INTEGER;
-              //
-              //   for(var i=0; i < data.points.length; i++){
-              //     var idx = data.points[i].pointNumber;
-              //     var ts = this.trace.ts[idx];
-              //     min = Math.min( min, ts);
-              //     max = Math.max( max, ts);
-              //   }
-              //
-              //   min -= 1000;
-              //   max += 1000;
-              //
-              //   var range = {from: moment.utc(min), to: moment.utc(max) };
-              //
-              //   console.log( 'SELECTED!!!', min, max, data.points.length, range );
-              //
-              //   this.timeSrv.setTime(range);
-              //
-              //   // rebuild the graph after query
-              //   if(this.graph) {
-              //     Plotly.Plots.purge(this.graph);
-              //     this.graph.innerHTML = '';
-              //     this.initalized = false;
-              //   }
-              // });
+              this.graph.on('plotly_selected', function (data) {
+                var range = {
+                  from: moment.utc(data.range.x[0]),
+                  to: moment.utc(data.range.x[1])
+                };
+
+                _this2.timeSrv.setTime(range);
+
+                // rebuild the graph after query
+                if (_this2.graph) {
+                  Plotly.Plots.purge(_this2.graph);
+                  _this2.graph.innerHTML = '';
+                  _this2.initalized = false;
+                }
+              });
             } else {
               Plotly.redraw(this.graph);
             }
@@ -390,9 +376,29 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
             return color;
           }
         }, {
+          key: 'findKeys',
+          value: function findKeys(obj, prefix) {
+            var _this3 = this;
+
+            var allKeys = {};
+            prefix = prefix || [];
+            Object.keys(obj).forEach(function (key) {
+              var value = obj[key];
+              var prefixedKey = prefix.concat(key);
+              if ((typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object') {
+                Object.keys(_this3.findKeys(value, prefixedKey)).forEach(function (key) {
+                  allKeys[key] = prefixedKey;
+                });
+              } else {
+                allKeys[prefixedKey.join('.')] = prefixedKey;
+              }
+            });
+            return allKeys;
+          }
+        }, {
           key: 'onDataReceived',
           value: function onDataReceived(dataQuery) {
-            var _this3 = this;
+            var _this4 = this;
 
             // We recive a list of data objects, one from each query specified.
             console.log('this is', this);
@@ -413,10 +419,10 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
             var _loop = function _loop(data_group) {
               // Once we can determine the data source, we can remove this hack
               var refId = void 0;
-              if (dataQuery.length != _this3.panel.targets.length) {
-                refId = _this3.panel.targets[0].refId;
+              if (dataQuery.length != _this4.panel.targets.length) {
+                refId = _this4.panel.targets[0].refId;
               } else {
-                refId = _this3.panel.targets[data_group].refId;
+                refId = _this4.panel.targets[data_group].refId;
               }
 
               var dataObject = dataQuery[data_group];
@@ -428,35 +434,78 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                 mode: cfg.settings.mode
               };
 
-              _this3.traces[refId][dataObject.target] = trace;
+              _this4.traces[refId][dataObject.target] = trace;
 
               var datapoints = dataObject.datapoints;
-              // Figure out what index is going to be X and which will be Y
-              // The default return is [value, timestamp] from ES date histogram Count
-              var xIndex = mapping.x || 1;
-              var yIndex = mapping.y || 0;
-              var zIndex = mapping.z || 2;
 
               if (dataObject.type == 'docs') {
-                for (j = 0; j < datapoints.length; j++) {
-                  var point = datapoints[j];
-                  Object.keys(point).forEach(function (key) {
-                    _this3.displayOptions[refId][key] = true;
+                var _loop2 = function _loop2(_j) {
+                  var point = datapoints[_j];
+                  var esKeys = _this4.findKeys(point);
+                  Object.keys(esKeys).forEach(function (key) {
+                    var esKeyLookup = esKeys[key];
+                    _this4.displayOptions[refId][key] = function (obj) {
+                      var val = obj;
+                      for (var _i = 0; _i < esKeyLookup.length; _i++) {
+                        val = val[esKeyLookup[_i]];
+                      }
+                      return val;
+                    };
                   });
+                };
+
+                // Because ES has nested keys, we want to expose these to the user. To do this, we
+                // prove the dot notation string the user can select, but on the backend, we have to
+                // transverse the object to retrieve the value. This provides a function for each
+                // index the user can select that will retries the value from the provided data
+                // structure
+
+                for (var _j = 0; _j < datapoints.length; _j++) {
+                  _loop2(_j);
                 }
               } else {
-                for (j = 0; j < datapoints[0].length; j++) {
-                  _this3.displayOptions[refId][j] = true;
+                var _loop3 = function _loop3(_j2) {
+                  _this4.displayOptions[refId][_j2] = function (obj) {
+                    return obj[_j2];
+                  };
+                };
+
+                for (var _j2 = 0; _j2 < datapoints[0].length; _j2++) {
+                  _loop3(_j2);
                 }
               }
 
+              // Figure out what index is going to be X and which will be Y
+              // The default return is [value, timestamp] from ES date histogram Count
+              var xIndex = function xIndex(obj) {
+                if (mapping.x) {
+                  return _this4.displayOptions[refId][mapping.x](obj);
+                } else {
+                  return obj[mapping.x || 1];
+                }
+              };
+              var yIndex = function yIndex(obj) {
+                if (mapping.x) {
+                  return _this4.displayOptions[refId][mapping.y](obj);
+                } else {
+                  return obj[mapping.y || 0];
+                }
+              };
+              var zIndex = function zIndex(obj) {
+                if (mapping.z) {
+                  return _this4.displayOptions[refId][mapping.z](obj);
+                } else {
+                  return obj[mapping.z || 2];
+                }
+              };
+
               for (j = 0; j < datapoints.length; j++) {
-                var _point = datapoints[j];
+                var point = datapoints[j];
                 var xdata = void 0,
                     ydata = void 0,
                     zdata = void 0;
                 if (refId == mapping.x_query) {
-                  var data = _point[xIndex];
+                  var data = xIndex(point);
                   if (Array.isArray(data)) {
                     xdata = data[0];
                   } else {
@@ -464,7 +513,7 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                   }
                 }
                 if (refId == mapping.y_query) {
-                  var _data = _point[yIndex];
+                  var _data = yIndex(point);
                   if (Array.isArray(_data)) {
                     ydata = _data[0];
                   } else {
@@ -480,18 +529,16 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
               trace.marker = $.extend(true, {}, cfg.settings.marker);
               trace.line = $.extend(true, {}, cfg.settings.line);
               if (cfg.settings.marker.color === null) {
-                trace.marker.color = _this3.getRandomColor();
+                trace.marker.color = _this4.getRandomColor();
               }
               if (cfg.settings.line.color === null) {
-                trace.line.color = _this3.getRandomColor();
+                trace.line.color = _this4.getRandomColor();
               }
 
-              _this3.data.push(trace);
+              _this4.data.push(trace);
             };
 
             for (var data_group = 0; data_group < dataQuery.length; data_group++) {
-              var j;
-              var j;
               var j;
 
               _loop(data_group);
@@ -516,13 +563,13 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
             }
 
             var axis = [this.panel.pconfig.layout.xaxis, this.panel.pconfig.layout.yaxis];
-            for (var _i = 0; _i < axis.length; _i++) {
-              if (axis[_i].rangemode === 'between') {
-                if (axis[_i].range == null) {
-                  axis[_i].range = [0, null];
+            for (var _i2 = 0; _i2 < axis.length; _i2++) {
+              if (axis[_i2].rangemode === 'between') {
+                if (axis[_i2].range == null) {
+                  axis[_i2].range = [0, null];
                 }
               } else {
-                axis[_i].range = null;
+                axis[_i2].range = null;
               }
             }
             this.refresh();
@@ -530,24 +577,24 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
         }, {
           key: 'link',
           value: function link(scope, elem, attrs, ctrl) {
-            var _this4 = this;
+            var _this5 = this;
 
             this.graph = elem.find('.plotly-spot')[0];
             this.initalized = false;
             elem.on('mousemove', function (evt) {
-              _this4.mouse = evt;
+              _this5.mouse = evt;
             });
           }
         }, {
           key: 'getSymbolSegs',
           value: function getSymbolSegs() {
-            var _this5 = this;
+            var _this6 = this;
 
             var txt = ["circle", "circle-open", "circle-dot", "circle-open-dot", "square", "square-open", "square-dot", "square-open-dot", "diamond", "diamond-open", "diamond-dot", "diamond-open-dot", "cross", "cross-open", "cross-dot", "cross-open-dot", "x", "x-open", "x-dot", "x-open-dot", "triangle-up", "triangle-up-open", "triangle-up-dot", "triangle-up-open-dot", "triangle-down", "triangle-down-open", "triangle-down-dot", "triangle-down-open-dot", "triangle-left", "triangle-left-open", "triangle-left-dot", "triangle-left-open-dot", "triangle-right", "triangle-right-open", "triangle-right-dot", "triangle-right-open-dot", "triangle-ne", "triangle-ne-open", "triangle-ne-dot", "triangle-ne-open-dot", "triangle-se", "triangle-se-open", "triangle-se-dot", "triangle-se-open-dot", "triangle-sw", "triangle-sw-open", "triangle-sw-dot", "triangle-sw-open-dot", "triangle-nw", "triangle-nw-open", "triangle-nw-dot", "triangle-nw-open-dot", "pentagon", "pentagon-open", "pentagon-dot", "pentagon-open-dot", "hexagon", "hexagon-open", "hexagon-dot", "hexagon-open-dot", "hexagon2", "hexagon2-open", "hexagon2-dot", "hexagon2-open-dot", "octagon", "octagon-open", "octagon-dot", "octagon-open-dot", "star", "star-open", "star-dot", "star-open-dot", "hexagram", "hexagram-open", "hexagram-dot", "hexagram-open-dot", "star-triangle-up", "star-triangle-up-open", "star-triangle-up-dot", "star-triangle-up-open-dot", "star-triangle-down", "star-triangle-down-open", "star-triangle-down-dot", "star-triangle-down-open-dot", "star-square", "star-square-open", "star-square-dot", "star-square-open-dot", "star-diamond", "star-diamond-open", "star-diamond-dot", "star-diamond-open-dot", "diamond-tall", "diamond-tall-open", "diamond-tall-dot", "diamond-tall-open-dot", "diamond-wide", "diamond-wide-open", "diamond-wide-dot", "diamond-wide-open-dot", "hourglass", "hourglass-open", "bowtie", "bowtie-open", "circle-cross", "circle-cross-open", "circle-x", "circle-x-open", "square-cross", "square-cross-open", "square-x", "square-x-open", "diamond-cross", "diamond-cross-open", "diamond-x", "diamond-x-open", "cross-thin", "cross-thin-open", "x-thin", "x-thin-open", "asterisk", "asterisk-open", "hash", "hash-open", "hash-dot", "hash-open-dot", "y-up", "y-up-open", "y-down", "y-down-open", "y-left", "y-left-open", "y-right", "y-right-open", "line-ew", "line-ew-open", "line-ns", "line-ns-open", "line-ne", "line-ne-open", "line-nw", "line-nw-open"];
 
             var segs = [];
             _.forEach(txt, function (val) {
-              segs.push(_this5.uiSegmentSrv.newSegment(val));
+              segs.push(_this6.uiSegmentSrv.newSegment(val));
             });
             return this.q.when(segs);
           }
