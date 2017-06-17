@@ -240,41 +240,21 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
         });
       }
 
-      // this.graph.on('plotly_selected',  (data) => {
-      //
-      //   if(data.points.length == 0) {
-      //     console.log( "Nothign Selected", data)
-      //     return;
-      //   }
-      //
-      //   console.log( "SELECTED", data)
-      //
-      //   var min = Number.MAX_SAFE_INTEGER;
-      //   var max = Number.MIN_SAFE_INTEGER;
-      //
-      //   for(var i=0; i < data.points.length; i++){
-      //     var idx = data.points[i].pointNumber;
-      //     var ts = this.trace.ts[idx];
-      //     min = Math.min( min, ts);
-      //     max = Math.max( max, ts);
-      //   }
-      //
-      //   min -= 1000;
-      //   max += 1000;
-      //
-      //   var range = {from: moment.utc(min), to: moment.utc(max) };
-      //
-      //   console.log( 'SELECTED!!!', min, max, data.points.length, range );
-      //
-      //   this.timeSrv.setTime(range);
-      //
-      //   // rebuild the graph after query
-      //   if(this.graph) {
-      //     Plotly.Plots.purge(this.graph);
-      //     this.graph.innerHTML = '';
-      //     this.initalized = false;
-      //   }
-      // });
+      this.graph.on('plotly_selected',  (data) => {
+        const range = {
+          from: moment.utc(data.range.x[0]),
+          to: moment.utc(data.range.x[1])
+        };
+
+        this.timeSrv.setTime(range);
+
+        // rebuild the graph after query
+        if(this.graph) {
+          Plotly.Plots.purge(this.graph);
+          this.graph.innerHTML = '';
+          this.initalized = false;
+        }
+      });
     }
     else {
       Plotly.redraw(this.graph);
@@ -298,9 +278,9 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
     return color;
   }
 
-  function findKeys(obj, prefix) {
+  findKeys(obj, prefix) {
     let allKeys = {};
-    prefix = prefix + '.' || '';
+    prefix = prefix ? prefix + '.' : '';
     Object.keys(obj).forEach((key) => {
       let value = obj[key];
       const prefixedKey = prefix + key;
@@ -314,7 +294,6 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
     });
     return Object.keys(allKeys);
   }
-  findKeys({a: 2})
 
   onDataReceived(dataQuery) {
     // We recive a list of data objects, one from each query specified.
