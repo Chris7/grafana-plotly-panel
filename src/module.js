@@ -280,19 +280,19 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
 
   findKeys(obj, prefix) {
     let allKeys = {};
-    prefix = prefix ? prefix + '.' : '';
+    prefix = prefix || [];
     Object.keys(obj).forEach((key) => {
       let value = obj[key];
-      const prefixedKey = prefix + key;
+      const prefixedKey = prefix.concat(key);
       if (typeof value === 'object') {
-        findKeys(value, prefixedKey).forEach((key) => {
-          allKeys[key] = true;
+        Object.keys(this.findKeys(value, prefixedKey)).forEach((key) => {
+          allKeys[key] = prefixedKey;
         });
       } else {
-        allKeys[prefixedKey] = true;
+        allKeys[prefixedKey.join('.')] = prefixedKey;
       }
     });
-    return Object.keys(allKeys);
+    return allKeys;
   }
 
   onDataReceived(dataQuery) {
@@ -335,32 +335,66 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
 
 
       let datapoints = dataObject.datapoints;
-      // Figure out what index is going to be X and which will be Y
-      // The default return is [value, timestamp] from ES date histogram Count
-      const xIndex = mapping.x || 1;
-      const yIndex = mapping.y || 0;
-      const zIndex = mapping.z || 2;
 
       if (dataObject.type == 'docs') {
-        for(var j=0; j<datapoints.length; j++) {
+        // Because ES has nested keys, we want to expose these to the user. To do this, we
+        // prove the dot notation string the user can select, but on the backend, we have to
+        // transverse the object to retrieve the value. This provides a function for each
+        // index the user can select that will retries the value from the provided data
+        // structure
+
+        for(let j=0; j<datapoints.length; j++) {
           const point = datapoints[j];
-          this.findKeys(point).forEach(
-            (key) => {
-              this.displayOptions[refId][key] = true;
+          let esKeys = this.findKeys(point);
+          Object.keys(esKeys).forEach((key) => {
+            const esKeyLookup = esKeys[key];
+            this.displayOptions[refId][key] = (obj) => {
+              let val = obj;
+              for(let i=0; i<esKeyLookup.length; i++){
+                val = val[esKeyLookup[i]];
+              }
+              return val;
             }
-          );
+          });
         }
       } else {
-        for(var j=0; j<datapoints[0].length; j++) {
-          this.displayOptions[refId][j] = true;
+        for(let j=0; j<datapoints[0].length; j++) {
+          this.displayOptions[refId][j] = (obj) => {
+            return obj[j];
+          };
         }
       }
+
+      // Figure out what index is going to be X and which will be Y
+      // The default return is [value, timestamp] from ES date histogram Count
+      let xIndex = (obj) => {
+        if (mapping.x) {
+          return this.displayOptions[refId][mapping.x](obj);
+        } else {
+          return obj[mapping.x || 1];
+        }
+      };
+      let yIndex = (obj) => {
+        if (mapping.x) {
+          return this.displayOptions[refId][mapping.y](obj);
+        } else {
+          return obj[mapping.y || 0];
+        }
+      };
+      let zIndex = (obj) => {
+        if (mapping.z) {
+          return this.displayOptions[refId][mapping.z](obj);
+        } else {
+          return obj[mapping.z || 2];
+        }
+      };
+
 
       for(var j=0; j<datapoints.length; j++) {
         const point = datapoints[j];
         let xdata, ydata, zdata;
         if (refId == mapping.x_query) {
-          let data = point[xIndex];
+          let data = xIndex(point);
           if(Array.isArray(data)) {
             xdata = data[0];
           } else {
@@ -368,7 +402,7 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
           }
         }
         if (refId == mapping.y_query) {
-          let data = point[yIndex];
+          let data = yIndex(point);
           if(Array.isArray(data)) {
             ydata = data[0];
           } else {
