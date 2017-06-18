@@ -288,9 +288,10 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
     Object.keys(obj).forEach((key) => {
       let value = obj[key];
       const prefixedKey = prefix.concat(key);
-      if (typeof value === 'object') {
-        Object.keys(this.findKeys(value, prefixedKey)).forEach((key) => {
-          allKeys[key] = prefixedKey;
+      if (value !== null && typeof value === 'object') {
+        const nestedKeys = this.findKeys(value, prefixedKey);
+        Object.keys(nestedKeys).forEach((key) => {
+          allKeys[key] = nestedKeys[key];
         });
       } else {
         allKeys[prefixedKey.join('.')] = prefixedKey;
@@ -331,7 +332,7 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
         type: cfg.settings.mode,
         x: [],
         y: [],
-        name: dataObject.target,
+        name: dataObject.type == 'docs' ? mapping.y: dataObject.target,
         mode: cfg.settings.mode
       };
 
@@ -373,21 +374,23 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
       // Figure out what index is going to be X and which will be Y
       // The default return is [value, timestamp] from ES date histogram Count
       let xIndex = (obj) => {
-        if (mapping.x) {
+        // On the first switch to raw document mode, mapping.x may not be defined or still retain its value from a
+        // previous selection
+        if (mapping.x !== null && this.displayOptions[refId][mapping.x]) {
           return this.displayOptions[refId][mapping.x](obj);
         } else {
           return obj[mapping.x || 1];
         }
       };
       let yIndex = (obj) => {
-        if (mapping.x) {
+        if (mapping.y !== null && this.displayOptions[refId][mapping.y]) {
           return this.displayOptions[refId][mapping.y](obj);
         } else {
           return obj[mapping.y || 0];
         }
       };
       let zIndex = (obj) => {
-        if (mapping.z) {
+        if (mapping.z !== null && this.displayOptions[refId][mapping.z]) {
           return this.displayOptions[refId][mapping.z](obj);
         } else {
           return obj[mapping.z || 2];
