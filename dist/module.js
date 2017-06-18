@@ -86,6 +86,10 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
           _this.q = $q;
 
           _this.data = [];
+          _this.initialColors = {
+            marker: ['#33B5E5'],
+            line: ['#005f81']
+          };
           _this.traces = {};
           _this.displayOptions = {};
           _this.sizeChanged = true;
@@ -385,9 +389,10 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
             Object.keys(obj).forEach(function (key) {
               var value = obj[key];
               var prefixedKey = prefix.concat(key);
-              if ((typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object') {
-                Object.keys(_this3.findKeys(value, prefixedKey)).forEach(function (key) {
-                  allKeys[key] = prefixedKey;
+              if (value !== null && (typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object') {
+                var nestedKeys = _this3.findKeys(value, prefixedKey);
+                Object.keys(nestedKeys).forEach(function (key) {
+                  allKeys[key] = nestedKeys[key];
                 });
               } else {
                 allKeys[prefixedKey.join('.')] = prefixedKey;
@@ -415,6 +420,7 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
 
             var cfg = this.panel.pconfig;
             var mapping = cfg.mapping;
+            var colors = $.extend(true, {}, this.initialColors);
 
             var _loop = function _loop(data_group) {
               // Once we can determine the data source, we can remove this hack
@@ -430,7 +436,7 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
                 type: cfg.settings.mode,
                 x: [],
                 y: [],
-                name: dataObject.target,
+                name: dataObject.type == 'docs' ? mapping.y : dataObject.target,
                 mode: cfg.settings.mode
               };
 
@@ -478,21 +484,23 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
               // Figure out what index is going to be X and which will be Y
               // The default return is [value, timestamp] from ES date histogram Count
               var xIndex = function xIndex(obj) {
-                if (mapping.x) {
+                // On the first switch to raw document mode, mapping.x may not be defined or still retain its value from a
+                // previous selection
+                if (mapping.x !== null && _this4.displayOptions[refId][mapping.x]) {
                   return _this4.displayOptions[refId][mapping.x](obj);
                 } else {
                   return obj[mapping.x || 1];
                 }
               };
               var yIndex = function yIndex(obj) {
-                if (mapping.x) {
+                if (mapping.y !== null && _this4.displayOptions[refId][mapping.y]) {
                   return _this4.displayOptions[refId][mapping.y](obj);
                 } else {
                   return obj[mapping.y || 0];
                 }
               };
               var zIndex = function zIndex(obj) {
-                if (mapping.z) {
+                if (mapping.z !== null && _this4.displayOptions[refId][mapping.z]) {
                   return _this4.displayOptions[refId][mapping.z](obj);
                 } else {
                   return obj[mapping.z || 2];
@@ -529,10 +537,10 @@ System.register(['app/plugins/sdk', 'lodash', 'moment', 'angular', './external/p
               trace.marker = $.extend(true, {}, cfg.settings.marker);
               trace.line = $.extend(true, {}, cfg.settings.line);
               if (cfg.settings.marker.color === null) {
-                trace.marker.color = _this4.getRandomColor();
+                trace.marker.color = colors['marker'].pop() || _this4.getRandomColor();
               }
               if (cfg.settings.line.color === null) {
-                trace.line.color = _this4.getRandomColor();
+                trace.line.color = colors['line'].pop() || _this4.getRandomColor();
               }
 
               _this4.data.push(trace);
