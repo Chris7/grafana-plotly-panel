@@ -18,6 +18,10 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
     this.q = $q;
 
     this.data = [];
+    this.initialColors = {
+      marker: ['#33B5E5'],
+      line: ['#005f81']
+    };
     this.traces = {};
     this.displayOptions = {};
     this.sizeChanged = true;
@@ -311,6 +315,7 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
 
     let cfg = this.panel.pconfig;
     let mapping = cfg.mapping;
+    let colors = $.extend(true, {}, this.initialColors);
 
     for(let data_group=0; data_group<dataQuery.length; data_group++){
       // Once we can determine the data source, we can remove this hack
@@ -418,10 +423,10 @@ class PlotlyPanelCtrl extends MetricsPanelCtrl {
       trace.marker = $.extend(true, {}, cfg.settings.marker);
       trace.line = $.extend(true, {}, cfg.settings.line);
       if (cfg.settings.marker.color === null) {
-        trace.marker.color = this.getRandomColor();
+        trace.marker.color = colors['marker'].pop() || this.getRandomColor();
       }
       if (cfg.settings.line.color === null) {
-        trace.line.color = this.getRandomColor();
+        trace.line.color = colors['line'].pop() || this.getRandomColor();
       }
 
       this.data.push(trace);
